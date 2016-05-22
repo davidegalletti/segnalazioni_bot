@@ -13,7 +13,8 @@
         <ul>
         {% for message in bot_messages %}
             <li>
-                {{ message.when_sent }} da {{ message.utente.first_name }} {{ message.utente.last_name }}
+                {{ message.when_sent }} da {{ message.utente.first_name }} {{ message.utente.last_name }}<br>
+                {{ message.content_type }} {{ message.processed }}  
                 {% if message.photo_thumb %}<br><img src="{% static message.photo_thumb.url %}"/>{% endif %}
                 {% if message.caption %}<br><i>{{ message.caption }}</i>{% endif %}
                 {% if message.text %}<br><strong>{{ message.text }}</strong>{% endif %}

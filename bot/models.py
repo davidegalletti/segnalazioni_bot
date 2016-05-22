@@ -19,6 +19,7 @@ class TelegramMessage(models.Model):
     bot = models.ForeignKey(Bot)
     telegram_message_id = models.IntegerField()
     utente = models.ForeignKey(TelegramUser)
+    chat_id = models.CharField(max_length=50, db_index=True)
     content_type = models.CharField(max_length=50, db_index=True)
     # da telegram arriva unixtime
     when_sent = models.DateTimeField()

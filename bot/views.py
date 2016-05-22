@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import logging
 import telepot
 from datetime import datetime
 
@@ -11,6 +12,7 @@ from django.template import RequestContext
 from bot.models import TelegramMessage, TelegramUser, Bot, Segnalazione
 from django.http import HttpResponse
 
+logger = logging.getLogger(__name__)
 
 def process_messages(request):
 #     # test_davideg
@@ -70,8 +72,7 @@ def process_messages(request):
                             m.caption = response['message']['caption']
                     m.save()
         except Exception as ex:
-            pass
-#             logger.error(str(ex))
+            logger.error(str(ex))
     return HttpResponse("OK")
 
 def list_messages(request):

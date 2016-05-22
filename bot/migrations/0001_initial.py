@@ -31,6 +31,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('content_type', models.CharField(db_index=True, max_length=50)),
+                ('chat_id', models.CharField(db_index=True, max_length=50)),
                 ('telegram_message_id', models.IntegerField()),
                 ('when_sent', models.DateTimeField()),
                 ('when_registered', models.DateTimeField(auto_now_add=True)),
