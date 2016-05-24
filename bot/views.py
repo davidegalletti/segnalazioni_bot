@@ -80,6 +80,7 @@ def list_messages(request):
         bot_messages = list(TelegramMessage.objects.all())
         bot_messages = sorted(bot_messages, key=lambda message: message.when_sent)
         cont = RequestContext(request, {'bot_messages':bot_messages})
+        logger.warning("list_messages trovati %s messaggi." % len(bot_messages))
         return render_to_response('bot/list_messages.html', context_instance=cont)
     except Exception as ex:
         return HttpResponse(str(ex))

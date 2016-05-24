@@ -170,6 +170,7 @@ class BotChat():
             photo_messages = []
             risposta = ''
             foto_scartate = False
+            location_in_attesa_di_foto = False
             for m in self.lista_messaggi:
                 testo_log_comune = ("processa_lista: chat %s, messaggio %s. " % (self.chat_id, m.id))
                 if location_message is None and m.content_type == 'photo': # brucio le foto iniziali; bisogna mandare la location per prima
@@ -179,9 +180,11 @@ class BotChat():
                     m.save()
                 elif location_message is None and m.content_type == 'location':
                     print(testo_log_comune + "Trovata location, aspetto la foto.")
+                    location_in_attesa_di_foto = True
                     location_message = m
                 elif m.content_type == 'photo':
                     print(testo_log_comune + "Trovata anche la la foto. Registro la segnalazione")
+                    location_in_attesa_di_foto = False
                     # finalmente associo
                     s = Segnalazione()
                     s.photo_message = m
@@ -196,8 +199,10 @@ class BotChat():
                     risposta += ('Ho scartato un messaggio "%s\n". ' % m.content_type)
                     m.processed = True
                     m.save()
+            if location_in_attesa_di_foto:
+                risposta += "Ho ricevuto la posizione, per favora scatta e invia una foto.\n"
             if foto_scartate:
-                risposta = "Ho scartato una o più foto perché non erano precedute dalla geolocalizzazione. Per favore invia la posizione prima della foto.\n" + risposta
+                risposta += "Ho scartato una o più foto perché non erano precedute dalla geolocalizzazione. Per favore invia la posizione prima della foto.\n" + risposta
             if risposta:
                 self.bot.telepot.sendMessage(self.lista_messaggi[0].utente.telegram_id, risposta)
         
