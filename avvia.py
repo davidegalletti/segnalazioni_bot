@@ -49,6 +49,29 @@ class YourBot(telepot.async.Bot):
                             print("L'utente Telegram %s adesso ha anche lo username %s, aggiorno sul db." % (msg['from']['id'], msg['from']['username']))
                             ut.username =  msg['from']['username']
                             ut.save()
+                    if 'entities' in msg.keys():
+                        try:
+                            if msg['entities'][0]['type'] == 'bot_command':
+                                if content_type == 'text':
+                                    if msg['text'] == '/help':
+                                        self.bot.telepot.sendMessage(ut.telegram_id, '''Questo è un BOT di prova. L'intento è raccogliere segnalazioni fotografiche geolocalizzate. Il funzionamento è semplice: 
+ 1) Invia la tua posizione
+ 2) Scatta e invia una fotografia
+Ripeti questa sequenza quante volte vuoi. I dati vengono pubblicati in un dataset. Se mandi due posizioni o due fotografie di seguito, viene usata solo la seconda delle due; una fotografia inviata prima di aver mandato la posizione viene scartata.
+/map - per sapere dove trovare la mappa con tutte le segnalazioni
+/stato - per sapere quante segnalazioni hai registrato''')
+                                    elif msg['text'] == '/map':
+                                        self.bot.telepot.sendMessage(ut.telegram_id, 'http://108.161.134.31:8800/static/map.html')
+                                    elif msg['text'] == '/stato':
+                                        quante = len(Segnalazione.objects.filter(photo_message__utente_id = ut.telegram_id))
+                                        if quante == 0:
+                                            self.bot.telepot.sendMessage(ut.telegram_id, 'Non hai ancora inviato alcuna segnalazione.')
+                                        elif quante == 1:
+                                            self.bot.telepot.sendMessage(ut.telegram_id, 'Hai inviato una segnalazione.')
+                                        elif quante == 0:
+                                            self.bot.telepot.sendMessage(ut.telegram_id, 'Hai inviato %s segnalazioni.' % quante)
+                        except:
+                            pass
                     m = TelegramMessage()
                     # parte comune
                     m.chat_id = chat_id
@@ -72,7 +95,7 @@ class YourBot(telepot.async.Bot):
                         segnalazioni_vicine = Segnalazione.objects.filter(location_message__in = id_messaggi_vicini)
                         print('... di cui %s sono segnalazioni complete' % segnalazioni_vicine.count())
                         if segnalazioni_vicine.count() > 0:
-                            risposta_parte_comune = " foto; se non è necessario, non inviare una nuova segnalazione nello stesso luogo."
+                            risposta_parte_comune = " foto; se non è indispensabile, non inviare una nuova segnalazione nello stesso luogo."
                             if segnalazioni_vicine.count() == 1:
                                 risposta = "C'è già una segnalazione nel raggio di 50 metri. Ti mostro la" + risposta_parte_comune
                             else:
