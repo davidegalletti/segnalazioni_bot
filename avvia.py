@@ -53,7 +53,7 @@ class YourBot(telepot.async.Bot):
                         try:
                             if msg['entities'][0]['type'] == 'bot_command':
                                 if content_type == 'text':
-                                    if msg['text'] == '/help':
+                                    if msg['text'] == '/help' or msg['text'] == '/info':
                                         self.bot.telepot.sendMessage(ut.telegram_id, '''Questo è un BOT di prova. L'intento è raccogliere segnalazioni fotografiche geolocalizzate. Il funzionamento è semplice: 
  1) Invia la tua posizione
  2) Scatta e invia una fotografia

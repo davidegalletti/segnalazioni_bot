@@ -130,7 +130,7 @@ STATICFILES_DIRS = (
     os.path.join(BASE_DIR, "static"),
 )
 
-MEDIA_ROOT = '#############################'
+MEDIA_ROOT = '#############################/segnalazioni_bot/static/'
 TMP = '/tmp/'
 LOGGING_CONFIG = None
 LOGGING = {
