@@ -63,13 +63,13 @@ Ripeti questa sequenza quante volte vuoi. I dati vengono pubblicati in un datase
                                     elif msg['text'] == '/map':
                                         self.bot.telepot.sendMessage(ut.telegram_id, 'http://108.161.134.31:8800/static/map.html')
                                     elif msg['text'] == '/stato':
-                                        quante = len(Segnalazione.objects.filter(photo_message__utente_id = ut.telegram_id))
+                                        quante = len(Segnalazione.objects.filter(photo_message__utente__telegram_id = ut.telegram_id))
                                         if quante == 0:
                                             self.bot.telepot.sendMessage(ut.telegram_id, 'Non hai ancora inviato alcuna segnalazione.')
                                         elif quante == 1:
-                                            self.bot.telepot.sendMessage(ut.telegram_id, 'Hai inviato una segnalazione.')
-                                        elif quante == 0:
-                                            self.bot.telepot.sendMessage(ut.telegram_id, 'Hai inviato %s segnalazioni.' % quante)
+                                            self.bot.telepot.sendMessage(ut.telegram_id, 'Hai inviato una segnalazione. Grazie!')
+                                        else:
+                                            self.bot.telepot.sendMessage(ut.telegram_id, 'Hai inviato %s segnalazioni. Grazie!' % quante)
                         except:
                             pass
                     m = TelegramMessage()
