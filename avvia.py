@@ -11,7 +11,6 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from django.db import transaction
 
-logger = logging.getLogger(__name__)
 
 class YourBot(telepot.async.Bot):
     def __init__(self, bot, *args, **kwargs):
@@ -21,7 +20,7 @@ class YourBot(telepot.async.Bot):
 
     def on_chat_message(self, msg):
         content_type, chat_type, chat_id = telepot.glance(msg)
-        print("NUOVO MESSAGGIO sulla chat %s: '%s' " % (chat_id, content_type))
+        logger.info("NUOVO MESSAGGIO %s sulla chat %s: '%s' " % (msg['message_id'], chat_id, content_type))
 #         hide_keyboard = {'hide_keyboard': True}
 #         self.bot.telepot.sendMessage(msg['from']['id'], 'I am hiding it', reply_markup=hide_keyboard)
 #         show_keyboard = {'keyboard': [['Yes','No'], ['request-location','Maybe not']]}
@@ -30,12 +29,12 @@ class YourBot(telepot.async.Bot):
             with transaction.atomic():
                 # messaggio già processato ?
                 m_id = msg['message_id']
-                print("Ricevuto da Telegram messaggio %s ..." % msg['message_id'])
+                logger.debug("Ricevuto da Telegram messaggio %s ..." % msg['message_id'])
                 if len(list(TelegramMessage.objects.filter(telegram_message_id = m_id))) == 0:
                     # esiste l'utente ?
-                    print("... che non avevo ancora processato")
+                    logger.info("... da processare")
                     if len(TelegramUser.objects.filter(telegram_id = msg['from']['id'])) == 0:
-                        print("Da un nuovo utente Telegram %s, lo creo" % msg['from']['id'])
+                        logger.warning("Nuovo utente Telegram %s %s %s, lo creo" % (msg['from']['id'], msg['from']['first_name'], msg['from']['last_name']))
                         ut = TelegramUser()
                         ut.telegram_id = msg['from']['id']
                         ut.first_name = msg['from']['first_name']
@@ -46,7 +45,7 @@ class YourBot(telepot.async.Bot):
                     else:
                         ut = TelegramUser.objects.get(telegram_id = msg['from']['id'])
                         if 'username' in msg['from'].keys() and ut.username !=  msg['from']['username']:
-                            print("L'utente Telegram %s adesso ha anche lo username %s, aggiorno sul db." % (msg['from']['id'], msg['from']['username']))
+                            logger.info("L'utente Telegram %s adesso ha anche lo username %s, aggiorno sul db." % (msg['from']['id'], msg['from']['username']))
                             ut.username =  msg['from']['username']
                             ut.save()
                     if 'entities' in msg.keys():
@@ -62,6 +61,17 @@ Ripeti questa sequenza quante volte vuoi. I dati vengono pubblicati in un datase
 /stato - per sapere quante segnalazioni hai registrato''')
                                     elif msg['text'] == '/map':
                                         self.bot.telepot.sendMessage(ut.telegram_id, 'http://108.161.134.31:8800/static/map.html')
+                                    elif msg['text'] == '/logstart':
+                                        if 'username' in msg['from'].keys() and msg['from']['username'] == 'davidegalletti':
+                                            self.bot.admin_logging = True
+                                            self.bot.admin_chat_id = ut.telegram_id
+                                            self.bot.save()
+                                            self.bot.telepot.sendMessage(self.bot.admin_chat_id, 'Setting log ON')
+                                    elif msg['text'] == '/logstop':
+                                        if 'username' in msg['from'].keys() and msg['from']['username'] == 'davidegalletti':
+                                            self.bot.admin_logging = False
+                                            self.bot.save()
+                                            self.bot.telepot.sendMessage(self.bot.admin_chat_id, 'Setting log OFF')
                                     elif msg['text'] == '/stato':
                                         quante = len(Segnalazione.objects.filter(photo_message__utente__telegram_id = ut.telegram_id))
                                         if quante == 0:
@@ -70,8 +80,11 @@ Ripeti questa sequenza quante volte vuoi. I dati vengono pubblicati in un datase
                                             self.bot.telepot.sendMessage(ut.telegram_id, 'Hai inviato una segnalazione. Grazie!')
                                         else:
                                             self.bot.telepot.sendMessage(ut.telegram_id, 'Hai inviato %s segnalazioni. Grazie!' % quante)
-                        except:
-                            pass
+                        except Exception as ex:
+                            logger.error(str(ex))
+                            if self.bot.admin_logging:
+                                self.bot.telepot.sendMessage(my_bot.admin_chat_id, str(ex))
+
                     m = TelegramMessage()
                     # parte comune
                     m.chat_id = chat_id
@@ -91,9 +104,9 @@ Ripeti questa sequenza quante volte vuoi. I dati vengono pubblicati in un datase
                         # COME FILTRO QUELLI CHE SONO IN UNA SEGNALAZIONE ??
                         # prendo al max 5 
                         id_messaggi_vicini = list(tm.id for tm in TelegramMessage.objects.filter(content_type='location').extra(where=[("ABS(longitude-%s)<0.0002 AND ABS(latitude-%s)<0.0002") % (m.longitude, m.latitude)])[:5])
-                        print('E\' un messaggio "location", ho trovato %s altri messaggi ...' % len(id_messaggi_vicini))
+                        logger.info('E\' un messaggio "location", ho trovato %s altri messaggi ...' % len(id_messaggi_vicini))
                         segnalazioni_vicine = Segnalazione.objects.filter(location_message__in = id_messaggi_vicini)
-                        print('... di cui %s sono segnalazioni complete' % segnalazioni_vicine.count())
+                        logger.info('... di cui %s sono segnalazioni complete' % segnalazioni_vicine.count())
                         if segnalazioni_vicine.count() > 0:
                             risposta_parte_comune = " foto; se non è indispensabile, non inviare una nuova segnalazione nello stesso luogo."
                             if segnalazioni_vicine.count() == 1:
@@ -113,7 +126,7 @@ Ripeti questa sequenza quante volte vuoi. I dati vengono pubblicati in un datase
                         flat_txt = f.read()
                         m.photo_thumb.save(str(msg['message_id']) + 't.jpg', ContentFile(flat_txt))
                         
-                        hires_number = 3
+                        hires_number = len(msg['photo']) - 1
                         hires_path = settings.TMP + str(msg['message_id']) + 'h.jpg' 
                         self.bot.telepot.download_file(msg['photo'][hires_number]['file_id'], hires_path)
                         f = open(hires_path, 'rb')
@@ -123,23 +136,25 @@ Ripeti questa sequenza quante volte vuoi. I dati vengono pubblicati in un datase
                             m.caption = msg['caption']
                     m.save()
                 else:
-                    print("... che avevo già processato. Lo ignoro.")
+                    logger.debug("... che avevo già processato. Lo ignoro.")
         except Exception as ex:
-            print("ERRORE registrando un messaggio: " + str(ex))
-        print("Creo la lista di messaggi della stessa chat da processare...")
+            logger.error("ERRORE registrando un messaggio: " + str(ex))
+            if self.bot.admin_logging:
+                self.bot.telepot.sendMessage(my_bot.admin_chat_id, str(ex))
+        logger.debug("Creo la lista di messaggi della stessa chat da processare...")
         current_chat = '' 
         lista_messaggi_chat = []
         ## per ora il codice che segue non ha troppo senso, gestirebbe anche più di una chat per 
         #  utente cambiando il filter sulla seguente riga da "chat_id=chat_id" a "utente.telegram_id=msg['from']['id']"
         ## ma non so come funzionano gli id delle chat rispetto gli id degli utenti; postponed
         for tm in TelegramMessage.objects.filter(chat_id=chat_id, processed=False).order_by('telegram_message_id', 'when_sent'):
-            print("Messaggio dal db sulla chat %s: '%s' " % (chat_id, tm.content_type))
+            logger.debug("Messaggio dal db sulla chat %s: '%s' " % (chat_id, tm.content_type))
             if tm.content_type == 'text': # non faccio niente per ora con i messaggi di testo; sulle foto ci può essere la caption
-                print("Messaggio %s dal db sulla chat %s: '%s' scartato." % (tm.id, chat_id, tm.content_type))
+                logger.debug("Messaggio %s dal db sulla chat %s: '%s' scartato." % (tm.id, chat_id, tm.content_type))
                 tm.processed = True
                 tm.save()
             elif len(lista_messaggi_chat) == 0:
-                print("Messaggio %s dal db sulla chat %s: '%s' accodato." % (tm.id, chat_id, tm.content_type))
+                logger.debug("Messaggio %s dal db sulla chat %s: '%s' accodato." % (tm.id, chat_id, tm.content_type))
                 lista_messaggi_chat.append(tm)
                 current_chat = tm.chat_id
             elif current_chat == tm.chat_id:
@@ -156,11 +171,11 @@ Ripeti questa sequenza quante volte vuoi. I dati vengono pubblicati in un datase
                 
     def on_callback_query(self, msg):
         query_id, from_id, query_data = telepot.glance(msg, flavor='callback_query')
-        print('Callback Query:', query_id, from_id, query_data)
+        logger.info('Callback Query:', query_id, from_id, query_data)
 
     def on_inline_query(self, msg):
         query_id, from_id, query_string = telepot.glance(msg, flavor='inline_query')
-        print('Inline Query:', query_id, from_id, query_string)
+        logger.info('Inline Query:', query_id, from_id, query_string)
 
         def compute_answer():
             articles = [{'type': 'article',
@@ -172,7 +187,7 @@ Ripeti questa sequenza quante volte vuoi. I dati vengono pubblicati in un datase
 
     def on_chosen_inline_result(self, msg):
         result_id, from_id, query_string = telepot.glance(msg, flavor='chosen_inline_result')
-        print('Chosen Inline Result:', result_id, from_id, query_string)
+        logger.info('Chosen Inline Result:', result_id, from_id, query_string)
 
 
 class BotChat():
@@ -182,9 +197,9 @@ class BotChat():
         self.chat_id = chat_id
 
     def processa_lista(self):
-        print("processa_lista: Processo la lista di messaggi della chat %s." % self.chat_id)
+        logger.debug("processa_lista: Processo la lista di messaggi della chat %s." % self.chat_id)
         if len(self.lista_messaggi) > 0:
-            print("processa_lista: La chat %s ha %s messaggi." % (self.chat_id, len(self.lista_messaggi)))
+            logger.info("processa_lista: La chat %s ha %s messaggi." % (self.chat_id, len(self.lista_messaggi)))
             # processo la lista di messaggi di una chat ordinata per when_sent
             # mi aspetto una location seguita da una o più foto che associo alla stessa location
             # se inizia con una foto CHE FACCIO? Mando una richiesta di location che dovrebbe restituirmi una callback?
@@ -197,16 +212,16 @@ class BotChat():
             for m in self.lista_messaggi:
                 testo_log_comune = ("processa_lista: chat %s, messaggio %s. " % (self.chat_id, m.id))
                 if location_message is None and m.content_type == 'photo': # brucio le foto iniziali; bisogna mandare la location per prima
-                    print(testo_log_comune + "Foto non preceduta da location, la brucio.")
+                    logger.info(testo_log_comune + "Foto non preceduta da location, la brucio.")
                     foto_scartate = True
                     m.processed = True
                     m.save()
                 elif location_message is None and m.content_type == 'location':
-                    print(testo_log_comune + "Trovata location, aspetto la foto.")
+                    logger.info(testo_log_comune + "Trovata location, aspetto la foto.")
                     location_in_attesa_di_foto = True
                     location_message = m
                 elif m.content_type == 'photo':
-                    print(testo_log_comune + "Trovata anche la la foto. Registro la segnalazione")
+                    logger.info(testo_log_comune + "Trovata anche la la foto. Registro la segnalazione")
                     location_in_attesa_di_foto = False
                     # finalmente associo
                     s = Segnalazione()
@@ -223,7 +238,7 @@ class BotChat():
                     m.processed = True
                     m.save()
             if location_in_attesa_di_foto:
-                risposta += "Ho ricevuto la posizione, per favora scatta e invia una foto.\n"
+                risposta += "Ho ricevuto la posizione, per favore scatta e invia una foto.\n"
             if foto_scartate:
                 risposta += "Ho scartato una o più foto perché non erano precedute dalla geolocalizzazione. Per favore invia la posizione prima della foto.\n" + risposta
             if risposta:
@@ -236,16 +251,30 @@ settings.configure(default_settings= segnalazioni_bot.settings)
 print("Setting up django")   
 django.setup()
 
+DATEFMT = "%d/%b/%Y %H:%M:%S"
+FORMAT = "[%(asctime)s] %(levelname)s [%(name)s:%(lineno)s] %(message)s"
+FILENAME = '/tmp/segnalazionibot.log'
+logging.basicConfig(format=FORMAT,datefmt=DATEFMT,filename=FILENAME,level=20)
+logger = logging.getLogger(__name__)
+
 from bot.models import Bot, TelegramUser, TelegramMessage, Segnalazione
 my_bot = Bot.objects.get(pk=1)
-print("Loading bot with id %s: '%s'" % (my_bot.id, my_bot.nome))   
+logger.info("Loading bot with id %s: '%s'" % (my_bot.id, my_bot.nome))   
 my_bot.telepot = telepot.Bot(my_bot.token)
-my_bot.telepot.getMe()
-print("Connected to Telegram")   
-
-bot = YourBot(my_bot, my_bot.token)
-loop = asyncio.get_event_loop()
-
-loop.create_task(bot.message_loop())
-print("Starting the forever loop")   
-loop.run_forever()
+try:
+    out = my_bot.telepot.getMe()
+    if my_bot.admin_logging:
+        my_bot.telepot.sendMessage(my_bot.admin_chat_id, ("Connected to Telegram: %s" % out)   )
+    logger.warning("Connected to Telegram: %s" % out)   
+    
+    bot = YourBot(my_bot, my_bot.token)
+    loop = asyncio.get_event_loop()
+    
+    loop.create_task(bot.message_loop())
+    logger.debug("Starting the forever loop")
+    loop.run_forever()
+except Exception as ex:
+    logger.error("Error starting bot with getMe: \"%s\" - \"%s\"" % (str(ex), str(ex.json)))
+    if my_bot.admin_logging:
+        my_bot.telepot.sendMessage(my_bot.admin_chat_id, ("Error starting bot with getMe: \"%s\" - \"%s\"" % (str(ex), str(ex.json)))   )
+    

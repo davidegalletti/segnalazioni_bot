@@ -24,6 +24,8 @@ class Migration(migrations.Migration):
                 ('group_text_with_location', models.BooleanField(default=True)),
                 ('group_photo_with_location', models.BooleanField(default=True)),
                 ('location_first', models.BooleanField(default=True)),
+                ('admin_chat_id', models.IntegerField(default=0)),
+                ('admin_logging', models.BooleanField(default=False)),
             ],
         ),
         migrations.CreateModel(

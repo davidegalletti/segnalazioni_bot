@@ -133,6 +133,18 @@ STATICFILES_DIRS = (
 MEDIA_ROOT = '#############################/segnalazioni_bot/static/'
 TMP = '/tmp/'
 LOGGING_CONFIG = None
+
+DEFAULT_INDEX_TABLESPACE = ''
+DEFAULT_TABLESPACE = ''
+ABSOLUTE_URL_OVERRIDES={}
+AUTH_USER_MODEL = 'auth.User'
+LOCALE_PATHS=[]
+DATABASE_ROUTERS=[]
+DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
+MEDIA_URL = ''
+FILE_UPLOAD_PERMISSIONS = None
+FILE_UPLOAD_DIRECTORY_PERMISSIONS = None
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -152,6 +164,14 @@ LOGGING = {
             'filename': '/tmp/segnalazioni_bot.log',
             'formatter': 'verbose'
         },
+        'file_rotate': {
+            'level':'DEBUG',
+            'class':'logging.handlers.RotatingFileHandler',
+            'filename': '/tmp/segnalazioni_bot.log',
+            'maxBytes': 1024*1024*5, # 5 MB
+            'backupCount': 5,
+            'formatter':'verbose',
+            },
     },
     'loggers': {
         'django': {
@@ -161,17 +181,18 @@ LOGGING = {
         },
         'bot': {
             'handlers': ['file'],
+            'propagate': True,
+            'level': 'DEBUG',
+        },
+        'avvia': {
+            'handlers': ['file'],
+            'propagate': True,
+            'level': 'DEBUG',
+        },
+        'segnalazioni_bot': {
+            'handlers': ['file'],
+            'propagate': True,
             'level': 'DEBUG',
         },
     }
 }
-DEFAULT_INDEX_TABLESPACE = ''
-DEFAULT_TABLESPACE = ''
-ABSOLUTE_URL_OVERRIDES={}
-AUTH_USER_MODEL = 'auth.User'
-LOCALE_PATHS=[]
-DATABASE_ROUTERS=[]
-DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
-MEDIA_URL = ''
-FILE_UPLOAD_PERMISSIONS = None
-FILE_UPLOAD_DIRECTORY_PERMISSIONS = None

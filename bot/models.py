@@ -8,6 +8,8 @@ class Bot(models.Model):
     group_text_with_location = models.BooleanField(default=True)
     group_photo_with_location = models.BooleanField(default=True)
     location_first = models.BooleanField(default=True)
+    admin_logging = models.BooleanField(default=False)
+    admin_chat_id = models.IntegerField(default=0)
 
 class TelegramUser(models.Model):
     telegram_id = models.IntegerField()
