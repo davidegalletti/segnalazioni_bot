@@ -19,6 +19,8 @@ class YourBot(telepot.async.Bot):
         self._answerer = telepot.async.helper.Answerer(self)
 
     def on_chat_message(self, msg):
+        from django.db import connection 
+        connection.close()
         content_type, chat_type, chat_id = telepot.glance(msg)
         logger.info("NUOVO MESSAGGIO %s sulla chat %s: '%s' " % (msg['message_id'], chat_id, content_type))
 #         hide_keyboard = {'hide_keyboard': True}
@@ -34,11 +36,14 @@ class YourBot(telepot.async.Bot):
                     # esiste l'utente ?
                     logger.info("... da processare")
                     if len(TelegramUser.objects.filter(telegram_id = msg['from']['id'])) == 0:
-                        logger.warning("Nuovo utente Telegram %s %s %s, lo creo" % (msg['from']['id'], msg['from']['first_name'], msg['from']['last_name']))
+                        first_name = (msg['from']['first_name'] if 'first_name' in msg['from'].keys() else '') 
+                        last_name = (msg['from']['last_name'] if 'last_name' in msg['from'].keys() else '')
+                        
+                        logger.warning("Nuovo utente Telegram %s %s %s, lo creo" % (msg['from']['id'], first_name, last_name))
                         ut = TelegramUser()
                         ut.telegram_id = msg['from']['id']
-                        ut.first_name = msg['from']['first_name']
-                        ut.last_name = msg['from']['last_name']
+                        ut.first_name = first_name
+                        ut.last_name = last_name
                         if 'username' in msg['from'].keys():
                             ut.username =  msg['from']['username']
                         ut.save()
