@@ -37,8 +37,17 @@ class TelegramMessage(models.Model):
     longitude = models.FloatField(blank=True,null=True, db_index=True)
     latitude = models.FloatField(blank=True,null=True, db_index=True)
 
+
+class Categoria(models.Model):
+    nome = models.CharField(max_length=750)
+    descrizione = models.TextField()
+    active = models.BooleanField(default=False)
+    public_map = models.BooleanField(default=False)
+
+
 class Segnalazione(models.Model):
     photo_message = models.ForeignKey(TelegramMessage, related_name="segnalazione_photo")
     location_message = models.ForeignKey(TelegramMessage, related_name="segnalazione_location")
+    categoria = models.ForeignKey(Categoria, blank=True,null=True)
     
     

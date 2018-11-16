@@ -66,6 +66,10 @@ Ripeti questa sequenza quante volte vuoi. I dati vengono pubblicati in un datase
 /stato - per sapere quante segnalazioni hai registrato''')
                                     elif msg['text'] == '/map':
                                         self.bot.telepot.sendMessage(ut.telegram_id, 'http://108.161.134.31:8800/static/map.html')
+                                    elif msg['text'] == '/cat':
+                                        self.bot.telepot.sendMessage(ut.telegram_id, "\n".join(
+                                            [("%s %s" % (c.id, c.nome)) for c in
+                                             Categoria.objects.filter(active=True)]))
                                     elif msg['text'] == '/logstart':
                                         if 'username' in msg['from'].keys() and msg['from']['username'] == 'davidegalletti':
                                             self.bot.admin_logging = True
@@ -155,7 +159,23 @@ Ripeti questa sequenza quante volte vuoi. I dati vengono pubblicati in un datase
         for tm in TelegramMessage.objects.filter(chat_id=chat_id, processed=False).order_by('telegram_message_id', 'when_sent'):
             logger.debug("Messaggio dal db sulla chat %s: '%s' " % (chat_id, tm.content_type))
             if tm.content_type == 'text': # non faccio niente per ora con i messaggi di testo; sulle foto ci può essere la caption
-                logger.debug("Messaggio %s dal db sulla chat %s: '%s' scartato." % (tm.id, chat_id, tm.content_type))
+                if (not tm.text in ['/start', '/help', '/map', '/cat', '/info', '/stato']) \
+                    and Segnalazione.objects.filter(photo_message__utente__telegram_id = tm.utente.telegram_id).exists():
+                    try:
+                        s = Segnalazione.objects.filter(photo_message__utente__telegram_id = tm.utente.telegram_id).order_by('-id')[0]
+                        id_categoria = int(tm.text.strip().split(" ")[0])
+                        c = Categoria.objects.get(pk=id_categoria)
+                        s.categoria = c
+                        s.photo_message.photo_caption = " ".join(tm.text.split(" ")[1:])
+                        s.save()
+                        self.bot.telepot.sendMessage(tm.utente.telegram_id,
+                                                     ('Grazie! Ho associato la tua segnalazione alla categoria "%s". Puoi modificare la tua scelta quante volte vuoi per la tua ultima segnalazione.' %
+                                                      c.nome))
+                        f = open(s.photo_message.photo_thumb.path, 'rb')  # some file on local disk
+                        response = self.bot.telepot.sendPhoto(tm.utente.telegram_id, f)
+                    except:
+                        self.bot.telepot.sendMessage(tm.utente.telegram_id, "Il messaggio è stato ignorato perché non corrisponde al formato richiesto.")
+                logger.debug("Messaggio %s dal db sulla chat %s: '%s'." % (tm.id, chat_id, tm.content_type))
                 tm.processed = True
                 tm.save()
             elif len(lista_messaggi_chat) == 0:
@@ -237,7 +257,20 @@ class BotChat():
                     m.save()
                     location_message.processed = True
                     location_message.save()
-                    risposta += 'Grazie, ho registrato una foto geolocalizzata.\n'
+                    if Categoria.objects.filter(active=True).exists():
+                        c_esempio = Categoria.objects.filter(active=True)[0]
+                        risposta += ('''Grazie, ho registrato una foto geolocalizzata.
+Dovresti dirmi a quale categoria associare questa immagine.
+Mandami un messaggio di testo che inizia con il numero della categoria preso dalla lista seguente. Opzionalmente il numero può essere seguito da un testo esplicativo da associare all'immagine. Ad esempio se scrivi:
+  %s Qui servirebbe un intervento dei tecnici del comune
+la tua foto verrà associata alla categoria "%s" ed avrà la didascalia "Qui servirebbe un intervento dei tecnici del comune".
+Ecco l'elenco delle categorie:
+''' % (c_esempio.id, c_esempio.nome))
+                        risposta += "\n".join(
+                            [("  %s %s" % (c.id, c.nome)) for c in
+                             Categoria.objects.filter(active=True)])
+                    else:
+                        risposta += 'Grazie, ho registrato una foto geolocalizzata.\n'
                 else:
                     risposta += ('Ho scartato un messaggio "%s\n". ' % m.content_type)
                     m.processed = True
@@ -262,7 +295,7 @@ FILENAME = '/tmp/segnalazionibot.log'
 logging.basicConfig(format=FORMAT,datefmt=DATEFMT,filename=FILENAME,level=20)
 logger = logging.getLogger(__name__)
 
-from bot.models import Bot, TelegramUser, TelegramMessage, Segnalazione
+from bot.models import Bot, TelegramUser, TelegramMessage, Segnalazione, Categoria
 my_bot = Bot.objects.get(pk=1)
 logger.info("Loading bot with id %s: '%s'" % (my_bot.id, my_bot.nome))   
 my_bot.telepot = telepot.Bot(my_bot.token)

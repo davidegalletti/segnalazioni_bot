@@ -5,7 +5,7 @@ var map = new L.Map('map', {
 });
 
 // create a new tile layer
-var tileUrl = 'https://{s}.tile.thunderforest.com/cycle/{z}/{x}/{y}.png',
+var tileUrl = 'https://{s}.tile.thunderforest.com/cycle/{z}/{x}/{y}.png?apikey=0d2b2c10fb3f455e967a7298ff736228',
 layer = new L.TileLayer(tileUrl, {
     maxZoom: 18,
     attribution: 'Data &copy; <a href="http://osm.org/copyright" title="OpenStreetMap" target="_blank">OpenStreetMap</a> contributors | Maps &copy; <a href="http://www.thunderforest.com/" title="Thunderforest" target="_blank">Thunderforest</a>',

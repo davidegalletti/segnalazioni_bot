@@ -5,8 +5,7 @@
 #
 # Author: Davide Galletti                davide   ( at )   c4k.it
 
-from django.conf.urls import patterns, url
-
+from django.conf.urls import url
 from bot import views
 
 urlpatterns = [
