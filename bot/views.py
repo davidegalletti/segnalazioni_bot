@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
-import logging
-import telepot
+import logging, telepot, os
+
 from datetime import datetime
 
 from django.db import transaction
 from django.core.files.base import ContentFile
 from django.core import management
 from django.conf import settings
+from django.http import HttpResponse
 from django.shortcuts import render_to_response
 from django.template import RequestContext
-from bot.models import TelegramMessage, TelegramUser, Bot, Segnalazione
-from django.http import HttpResponse
+from bot.models import TelegramMessage, TelegramUser, Bot, Segnalazione, Categoria
 
 logger = logging.getLogger(__name__)
 
@@ -75,13 +75,26 @@ def process_messages(request):
             logger.error(str(ex))
     return HttpResponse("OK")
 
+def map(request, hash):
+    try:
+        this_category = None
+        for c in Categoria.objects.filter(active=True):
+            if c.hash == hash:
+                this_category = c
+                break
+        if this_category:
+            return render_to_response('bot/map.html', {'categoria': c.nome, 'hash': hash})
+        else:
+            return HttpResponse("Not found.")
+    except Exception as ex:
+        return HttpResponse(str(ex))
+
 def list_messages(request):
     try:
-        bot_messages = list(TelegramMessage.objects.all())
-        bot_messages = sorted(bot_messages, key=lambda message: message.when_sent)
-        cont = RequestContext(request, {'bot_messages':bot_messages})
+        bot_messages = list(TelegramMessage.objects.all().order_by('-id'))[:200]
+        #bot_messages = sorted(bot_messages, key=lambda message: message.when_sent)
         logger.warning("list_messages trovati %s messaggi." % len(bot_messages))
-        return render_to_response('bot/list_messages.html', context_instance=cont)
+        return render_to_response('bot/list_messages.html', {'bot_messages':bot_messages})
     except Exception as ex:
         return HttpResponse(str(ex))
 
@@ -89,17 +102,46 @@ def list_segnalazioni(request):
     try:
         segnalazioni = list(Segnalazione.objects.all())
         segnalazioni = sorted(segnalazioni, key=lambda segnalazione: segnalazione.photo_message.when_sent)
-        cont = RequestContext(request, {'segnalazioni':segnalazioni})
-        return render_to_response('bot/list_segnalazioni.html', context_instance=cont)
+        cont = {'segnalazioni':segnalazioni}
+        return render_to_response('bot/list_segnalazioni.html', cont)
     except Exception as ex:
         return HttpResponse(str(ex))
 
 def aggiorna_marker(request):
     try:
-        target = open(settings.BASE_DIR + "/static/maps/markers.json", 'w')    
+        # elimino eventuali file relativi a categorie non attive
+        for c in Categoria.objects.filter(active=False):
+            file_path = ("%s/static/maps/markers%s.json" % (settings.BASE_DIR, c.hash))
+            try:
+                os.unlink(file_path)
+            except:
+                pass
+        for c in Categoria.objects.filter(active=True):
+            if Segnalazione.objects.filter(categoria=c).exists():
+                file_path = ("%s/static/maps/markers%s.json" % (settings.BASE_DIR, c.hash))
+                target = open(file_path, 'w')
+                target.truncate()
+                target.write("markers = [\n")
+                for segnalazione in Segnalazione.objects.filter(categoria=c):
+                    target.write("  {\n")
+                    target.write(('    "when": "%s",\n' % segnalazione.photo_message.when_sent))
+                    target.write(   ('    "thumb": "%s",\n' % segnalazione.photo_message.photo_thumb.url))
+                    target.write(('    "hires": "%s",\n' % segnalazione.photo_message.photo_hires.url))
+                    if segnalazione.photo_message.photo_caption:
+                        target.write(('    "caption": "%s",\n' % segnalazione.photo_message.photo_caption))
+                    else:
+                        target.write('    "caption": "",\n')
+                    target.write(('    "lat": "%s",\n' % segnalazione.location_message.latitude))
+                    target.write(('    "lng": "%s"\n' % segnalazione.location_message.longitude))
+                    target.write("  },\n")
+                target.write("]\n")
+                target.close()
+        return HttpResponse("OK")
+
+        target = open(settings.BASE_DIR + "/static/maps/markers.json", 'w')
         target.truncate()
         target.write("markers = [\n")
-        for segnalazione in Segnalazione.objects.all():
+        for segnalazione in Segnalazione.objects.filter(id__gt=54):
             target.write("  {\n")
             target.write(('    "when": "%s",\n' % segnalazione.photo_message.when_sent))
             target.write(('    "thumb": "%s",\n' % segnalazione.photo_message.photo_thumb.url))

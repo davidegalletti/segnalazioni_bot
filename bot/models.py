@@ -1,5 +1,6 @@
 from django.db import models
-import telepot
+from hashlib import md5
+from django.conf import settings
 
 class Bot(models.Model):
     nome = models.CharField(max_length=750)
@@ -42,7 +43,12 @@ class Categoria(models.Model):
     nome = models.CharField(max_length=750)
     descrizione = models.TextField()
     active = models.BooleanField(default=False)
+    visibile = models.BooleanField(default=True)
     public_map = models.BooleanField(default=False)
+
+    @property
+    def hash(self):
+        return md5((("%s%s%s") % (self.nome, settings.SECRET_KEY, self.id)).encode()).hexdigest()
 
 
 class Segnalazione(models.Model):

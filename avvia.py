@@ -11,6 +11,7 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from django.db import transaction
 
+from bot.exif import getGPS
 
 class YourBot(telepot.async.Bot):
     def __init__(self, bot, *args, **kwargs):
@@ -65,11 +66,14 @@ Ripeti questa sequenza quante volte vuoi. I dati vengono pubblicati in un datase
 /map - per sapere dove trovare la mappa con tutte le segnalazioni
 /stato - per sapere quante segnalazioni hai registrato''')
                                     elif msg['text'] == '/map':
-                                        self.bot.telepot.sendMessage(ut.telegram_id, 'http://108.161.134.31:8800/static/map.html')
+                                        self.bot.telepot.sendMessage(ut.telegram_id, "\n".join(
+                                            [("%s: http://108.161.134.31:8800/bot/map/%s/" % (c.nome, c.hash)) for c in
+                                             Categoria.objects.filter(active=True, visibile=True, public_map=True)]))
+#                                        self.bot.telepot.sendMessage(ut.telegram_id, 'http://108.161.134.31:8800/static/map.html')
                                     elif msg['text'] == '/cat':
                                         self.bot.telepot.sendMessage(ut.telegram_id, "\n".join(
-                                            [("%s %s" % (c.id, c.nome)) for c in
-                                             Categoria.objects.filter(active=True)]))
+                                            [("%s %s %s" % (c.id, c.nome, ("" if c.public_map else "(N.B. la mappa non è pubblica!)"))) for c in
+                                             Categoria.objects.filter(active=True, visibile=True)]))
                                     elif msg['text'] == '/logstart':
                                         if 'username' in msg['from'].keys() and msg['from']['username'] == 'davidegalletti':
                                             self.bot.admin_logging = True
@@ -143,6 +147,44 @@ Ripeti questa sequenza quante volte vuoi. I dati vengono pubblicati in un datase
                         m.photo_hires.save(str(msg['message_id']) + 'h.jpg', ContentFile(flat_txt))
                         if 'caption' in msg.keys():
                             m.caption = msg['caption']
+                    if content_type == 'document' and msg['document']['mime_type'][:5] == 'image':
+                        thumb_path = settings.TMP + str(msg['message_id']) + 't.jpg'
+                        self.bot.telepot.download_file(msg['document']['thumb']['file_id'], thumb_path)
+                        f = open(thumb_path, 'rb')
+                        flat_txt = f.read()
+                        m.photo_thumb.save(str(msg['message_id']) + 't.jpg', ContentFile(flat_txt))
+                        hires_path = settings.TMP + str(msg['message_id']) + 'h.jpg'
+                        self.bot.telepot.download_file(msg['document']['file_id'], hires_path)
+                        f = open(hires_path, 'rb')
+                        flat_txt = f.read()
+                        m.photo_hires.save(str(msg['message_id']) + 'h.jpg', ContentFile(flat_txt))
+                        coordinates = getGPS(hires_path)
+                        if coordinates:
+                            m.latitude = coordinates['latitude']
+                            m.longitude = coordinates['longitude']
+
+                            s = Segnalazione()
+                            s.photo_message = m
+                            s.location_message = m
+                            s.save()
+                            m.processed = True
+                            m.save()
+                            if Categoria.objects.filter(active=True, visibile=True).exists():
+                                c_esempio = Categoria.objects.filter(active=True, visibile=True)[0]
+                                risposta = ('''Grazie, ho estratto le coordinate GPS dalla tua foto e ho registrato una foto geolocalizzata.
+                    Dovresti dirmi a quale categoria associare questa immagine.
+                    Mandami un messaggio di testo che inizia con il numero della categoria preso dalla lista seguente. Opzionalmente il numero può essere seguito da un testo esplicativo da associare all'immagine. Ad esempio se scrivi:
+                      %s Qui servirebbe un intervento dei tecnici del comune
+                    la tua foto verrà associata alla categoria "%s" ed avrà la didascalia "Qui servirebbe un intervento dei tecnici del comune".
+                    Ecco l'elenco delle categorie:
+                    ''' % (c_esempio.id, c_esempio.nome))
+                                risposta += "\n".join(
+                                    [("  %s %s" % (c.id, c.nome)) for c in
+                                     Categoria.objects.filter(active=True, visibile=True)])
+                            else:
+                                risposta = 'Grazie, ho estratto le coordinate GPS dalla tua foto e ho registrato una foto geolocalizzata.\n'
+                            if risposta:
+                                self.bot.telepot.sendMessage(ut.telegram_id, risposta)
                     m.save()
                 else:
                     logger.debug("... che avevo già processato. Lo ignoro.")
@@ -167,12 +209,14 @@ Ripeti questa sequenza quante volte vuoi. I dati vengono pubblicati in un datase
                         c = Categoria.objects.get(pk=id_categoria)
                         s.categoria = c
                         s.photo_message.photo_caption = " ".join(tm.text.split(" ")[1:])
+                        s.photo_message.save()
                         s.save()
                         self.bot.telepot.sendMessage(tm.utente.telegram_id,
                                                      ('Grazie! Ho associato la tua segnalazione alla categoria "%s". Puoi modificare la tua scelta quante volte vuoi per la tua ultima segnalazione.' %
                                                       c.nome))
                         f = open(s.photo_message.photo_thumb.path, 'rb')  # some file on local disk
                         response = self.bot.telepot.sendPhoto(tm.utente.telegram_id, f)
+                        self.bot.telepot.sendMessage(tm.utente.telegram_id, ("%s: %s" % (c.nome, s.photo_message.photo_caption)))
                     except:
                         self.bot.telepot.sendMessage(tm.utente.telegram_id, "Il messaggio è stato ignorato perché non corrisponde al formato richiesto.")
                 logger.debug("Messaggio %s dal db sulla chat %s: '%s'." % (tm.id, chat_id, tm.content_type))
@@ -257,8 +301,8 @@ class BotChat():
                     m.save()
                     location_message.processed = True
                     location_message.save()
-                    if Categoria.objects.filter(active=True).exists():
-                        c_esempio = Categoria.objects.filter(active=True)[0]
+                    if Categoria.objects.filter(active=True, visibile=True).exists():
+                        c_esempio = Categoria.objects.filter(active=True, visibile=True)[0]
                         risposta += ('''Grazie, ho registrato una foto geolocalizzata.
 Dovresti dirmi a quale categoria associare questa immagine.
 Mandami un messaggio di testo che inizia con il numero della categoria preso dalla lista seguente. Opzionalmente il numero può essere seguito da un testo esplicativo da associare all'immagine. Ad esempio se scrivi:
@@ -268,7 +312,9 @@ Ecco l'elenco delle categorie:
 ''' % (c_esempio.id, c_esempio.nome))
                         risposta += "\n".join(
                             [("  %s %s" % (c.id, c.nome)) for c in
-                             Categoria.objects.filter(active=True)])
+                             Categoria.objects.filter(active=True, visibile=True)])
+                    elif m.content_type == 'document' and m['document']['mime_type'][:5] == 'image':
+                        pass
                     else:
                         risposta += 'Grazie, ho registrato una foto geolocalizzata.\n'
                 else:

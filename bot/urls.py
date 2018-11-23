@@ -12,6 +12,7 @@ urlpatterns = [
     url(r'^process_messages/$', views.process_messages, name='process_messages'),
     url(r'^list_messages/$', views.list_messages, name='list_messages'),
     url(r'^list_segnalazioni/$', views.list_segnalazioni, name='list_segnalazioni'),
+    url(r'^map/(?P<hash>.*)/$', views.map, name='map'),
     url(r'^aggiorna_marker/$', views.aggiorna_marker, name='aggiorna_marker'),
     url(r'^debug/$', views.debug, name='debug'),
 ]
