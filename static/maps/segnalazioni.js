@@ -26,11 +26,22 @@ var myIcon = L.icon({
     iconAnchor: [9, 21],
     popupAnchor: [0, -14]
 });
-
+/*
 for ( var i=0; i < markers.length; ++i ) 
 {
    L.marker( [markers[i].lat, markers[i].lng], {icon: myIcon} )
       .bindPopup( '<a target="_blank" href="/static/' + markers[i].hires + '"/><img src="/static/' + markers[i].thumb + '"/></a><br>' + markers[i].when + ' ' + markers[i].caption )
       .addTo( map );
 }
+*/
+var clusteredMarkers = L.markerClusterGroup();
 
+for ( var i=0; i < markers.length; ++i ) {
+    var a = markers[i];
+    var title = '<a target="_blank" href="/static/' + markers[i].hires + '"/><img src="/static/' + markers[i].thumb + '"/></a><br>' + markers[i].when + ' ' + markers[i].caption;
+    var marker = L.marker(new L.LatLng(markers[i].lat, markers[i].lng), { title: title });
+    marker.bindPopup(title);
+    clusteredMarkers.addLayer(marker);
+}
+
+map.addLayer(clusteredMarkers);

@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-import logging, telepot, os
-
+import codecs, logging, telepot, os
 from datetime import datetime
+from lxml import etree as et
 
 from django.db import transaction
+from django.contrib.staticfiles.templatetags.staticfiles import static
 from django.core.files.base import ContentFile
 from django.core import management
 from django.conf import settings
@@ -13,6 +14,7 @@ from django.template import RequestContext
 from bot.models import TelegramMessage, TelegramUser, Bot, Segnalazione, Categoria
 
 logger = logging.getLogger(__name__)
+
 
 def process_messages(request):
 #     # test_davideg
@@ -75,6 +77,7 @@ def process_messages(request):
             logger.error(str(ex))
     return HttpResponse("OK")
 
+
 def map(request, hash):
     try:
         this_category = None
@@ -89,6 +92,7 @@ def map(request, hash):
     except Exception as ex:
         return HttpResponse(str(ex))
 
+
 def list_messages(request):
     try:
         bot_messages = list(TelegramMessage.objects.all().order_by('-id'))[:200]
@@ -98,12 +102,12 @@ def list_messages(request):
     except Exception as ex:
         return HttpResponse(str(ex))
 
+
 def list_segnalazioni(request):
     try:
         segnalazioni = list(Segnalazione.objects.all())
-        segnalazioni = sorted(segnalazioni, key=lambda segnalazione: segnalazione.photo_message.when_sent)
-        cont = {'segnalazioni':segnalazioni}
-        return render_to_response('bot/list_segnalazioni.html', cont)
+        segnalazioni = sorted(segnalazioni, reverse=True, key=lambda segnalazione: segnalazione.photo_message.when_sent)
+        return render_to_response('bot/list_segnalazioni.html', {'segnalazioni':segnalazioni})
     except Exception as ex:
         return HttpResponse(str(ex))
 
@@ -118,8 +122,23 @@ def aggiorna_marker(request):
                 pass
         for c in Categoria.objects.filter(active=True):
             if Segnalazione.objects.filter(categoria=c).exists():
+                # Creo il file kml
+                file_path = ("%s/static/maps/%s.kml" % (settings.BASE_DIR, c.hash))
+                target_kml = open(file_path, 'wb')
+                target_kml.truncate()
+
+                kml_root = et.Element('kml', xmlns="http://www.opengis.net/kml/2.2")
+                document = et.SubElement(kml_root, "Document")
+                document_name = et.SubElement(document, "name")
+                document_name.text = ("Segnalazioni %s" % c.nome)
+                document_open = et.SubElement(document, "open")
+                document_open.text = "1"
+                document_description = et.SubElement(document, "description")
+                document_description.text = c.descrizione
+
+                # Creo il file marker
                 file_path = ("%s/static/maps/markers%s.json" % (settings.BASE_DIR, c.hash))
-                target = open(file_path, 'w')
+                target = codecs.open(file_path, 'w', encoding='utf8')
                 target.truncate()
                 target.write("markers = [\n")
                 for segnalazione in Segnalazione.objects.filter(categoria=c):
@@ -128,34 +147,46 @@ def aggiorna_marker(request):
                     target.write(   ('    "thumb": "%s",\n' % segnalazione.photo_message.photo_thumb.url))
                     target.write(('    "hires": "%s",\n' % segnalazione.photo_message.photo_hires.url))
                     if segnalazione.photo_message.photo_caption:
-                        target.write(('    "caption": "%s",\n' % segnalazione.photo_message.photo_caption))
+                        try:
+                            target.write(('    "caption": "%s",\n' % segnalazione.photo_message.photo_caption))
+                        except Exception as ex:
+                            logger.error(str(ex))
                     else:
                         target.write('    "caption": "",\n')
                     target.write(('    "lat": "%s",\n' % segnalazione.location_message.latitude))
                     target.write(('    "lng": "%s"\n' % segnalazione.location_message.longitude))
                     target.write("  },\n")
+
+                    document_placemark = et.SubElement(document, "Placemark")
+                    document_placemark_name = et.SubElement(document_placemark, "name")
+                    document_placemark_name.text = ("%s: %s ..." %
+                                                    (segnalazione.photo_message.when_sent.strftime("%Y-%m-%d")
+                                                     , segnalazione.photo_message.photo_caption[:50]
+                                                     )
+                                                    )
+                    document_placemark_description = et.SubElement(document_placemark, "description")
+                    base_url = ("%s://%s" % (request.scheme, request.META['HTTP_HOST']))
+                    document_placemark_description.text = et.CDATA(('<a href="%s%s"><img src="%s%s"/><br>%s</a>' %
+                                                                    (
+                                                                        base_url,
+                                                                        static(segnalazione.photo_message.photo_hires.url),
+                                                                        base_url,
+                                                                        static(segnalazione.photo_message.photo_thumb.url),
+                                                                        segnalazione.photo_message.photo_caption
+                                                                     )))
+                    document_placemark_point = et.SubElement(document_placemark, "Point")
+                    document_placemark_coordinates = et.SubElement(document_placemark_point, "coordinates")
+                    document_placemark_coordinates.text = ("%s,%s,0" % (segnalazione.location_message.longitude,
+                                                                        segnalazione.location_message.latitude))
+
                 target.write("]\n")
                 target.close()
+
+                target_kml.write(et.tostring(kml_root, pretty_print=True))
+                target_kml.close()
+
         return HttpResponse("OK")
 
-        target = open(settings.BASE_DIR + "/static/maps/markers.json", 'w')
-        target.truncate()
-        target.write("markers = [\n")
-        for segnalazione in Segnalazione.objects.filter(id__gt=54):
-            target.write("  {\n")
-            target.write(('    "when": "%s",\n' % segnalazione.photo_message.when_sent))
-            target.write(('    "thumb": "%s",\n' % segnalazione.photo_message.photo_thumb.url))
-            target.write(('    "hires": "%s",\n' % segnalazione.photo_message.photo_hires.url))
-            if segnalazione.photo_message.photo_caption:
-                target.write(('    "caption": "%s",\n' % segnalazione.photo_message.photo_caption))
-            else:
-                target.write('    "caption": "",\n')
-            target.write(('    "lat": "%s",\n' % segnalazione.location_message.latitude))
-            target.write(('    "lng": "%s"\n' % segnalazione.location_message.longitude))
-            target.write("  },\n")
-        target.write("]\n")
-        target.close()
-        return HttpResponse("OK")
     except Exception as ex:
         return HttpResponse(str(ex))
     

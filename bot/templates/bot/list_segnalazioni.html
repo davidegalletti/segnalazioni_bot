@@ -13,7 +13,7 @@
         <ul>
         {% for segnalazione in segnalazioni %}
             <li>
-                {{ segnalazione.photo_message.when_sent }} da {{ segnalazione.photo_message.utente.first_name }} {{ segnalazione.photo_message.utente.last_name }}
+                <b>{{ segnalazione.categoria.nome }}</b>: {{ segnalazione.photo_message.when_sent }} da {{ segnalazione.photo_message.utente.first_name }} {{ segnalazione.photo_message.utente.last_name }}
                 {% if segnalazione.photo_message.photo_thumb %}<br><img src="{% static segnalazione.photo_message.photo_thumb.url %}"/>{% endif %}
                 {% if segnalazione.photo_message.caption %}<br><i>{{ segnalazione.photo_message.caption }}</i>{% endif %}
                 {% if segnalazione.photo_message.caption %}<br><strong>{{ segnalazione.photo_message.caption }}</strong>{% endif %}

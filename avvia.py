@@ -59,12 +59,14 @@ class YourBot(telepot.async.Bot):
                             if msg['entities'][0]['type'] == 'bot_command':
                                 if content_type == 'text':
                                     if msg['text'] == '/help' or msg['text'] == '/info':
-                                        self.bot.telepot.sendMessage(ut.telegram_id, '''Questo è un BOT di prova. L'intento è raccogliere segnalazioni fotografiche geolocalizzate. Il funzionamento è semplice: 
+                                        self.bot.telepot.sendMessage(ut.telegram_id, '''Questo è un <b>BOT sperimentale</b>. L'intento è raccogliere segnalazioni fotografiche geolocalizzate. Il funzionamento è semplice: 
  1) Invia la tua posizione
  2) Scatta e invia una fotografia
+ 3) Segui le istruzioni per indicare la categorie della segnalazione e la didascalia della foto
 Ripeti questa sequenza quante volte vuoi. I dati vengono pubblicati in un dataset. Se mandi due posizioni o due fotografie di seguito, viene usata solo la seconda delle due; una fotografia inviata prima di aver mandato la posizione viene scartata.
-/map - per sapere dove trovare la mappa con tutte le segnalazioni
-/stato - per sapere quante segnalazioni hai registrato''')
+/map - per sapere dove trovare le mappe con tutte le segnalazioni
+/cat - per avere l'elenco delle categorie
+/stato - per sapere quante segnalazioni hai registrato''', parse_mode='HTML')
                                     elif msg['text'] == '/map':
                                         self.bot.telepot.sendMessage(ut.telegram_id, "\n".join(
                                             [("%s: http://108.161.134.31:8800/bot/map/%s/" % (c.nome, c.hash)) for c in
@@ -172,12 +174,12 @@ Ripeti questa sequenza quante volte vuoi. I dati vengono pubblicati in un datase
                             if Categoria.objects.filter(active=True, visibile=True).exists():
                                 c_esempio = Categoria.objects.filter(active=True, visibile=True)[0]
                                 risposta = ('''Grazie, ho estratto le coordinate GPS dalla tua foto e ho registrato una foto geolocalizzata.
-                    Dovresti dirmi a quale categoria associare questa immagine.
-                    Mandami un messaggio di testo che inizia con il numero della categoria preso dalla lista seguente. Opzionalmente il numero può essere seguito da un testo esplicativo da associare all'immagine. Ad esempio se scrivi:
-                      %s Qui servirebbe un intervento dei tecnici del comune
-                    la tua foto verrà associata alla categoria "%s" ed avrà la didascalia "Qui servirebbe un intervento dei tecnici del comune".
-                    Ecco l'elenco delle categorie:
-                    ''' % (c_esempio.id, c_esempio.nome))
+Dovresti dirmi a quale categoria associare questa immagine.
+Mandami un messaggio di testo che inizia con il numero della categoria preso dalla lista seguente. Opzionalmente il numero può essere seguito da un testo esplicativo da associare all'immagine. Ad esempio se scrivi:
+%s Qui servirebbe un intervento dei tecnici del comune
+la tua foto verrà associata alla categoria "%s" ed avrà la didascalia "Qui servirebbe un intervento dei tecnici del comune".
+Ecco l'elenco delle categorie:
+''' % (c_esempio.id, c_esempio.nome))
                                 risposta += "\n".join(
                                     [("  %s %s" % (c.id, c.nome)) for c in
                                      Categoria.objects.filter(active=True, visibile=True)])
